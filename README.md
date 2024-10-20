@@ -1,6 +1,6 @@
 <h1 aligin="center"> Advanced XSS</h1>
 
-```markdown
+
 # Advanced XSS
 
 **Author:** Karthik S Sathyan  
