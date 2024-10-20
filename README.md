@@ -1,4 +1,4 @@
-Here is a detailed `README.md` based on the provided **"Advanced XSS"** document by **Nicolas Golubovic**.
+<h1 aligin="center"> Advanced XSS</h1>
 
 ```markdown
 # Advanced XSS
