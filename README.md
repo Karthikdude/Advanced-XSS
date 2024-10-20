@@ -1,4 +1,4 @@
-<h1 aligin="center"> Advanced XSS</h1>
+
 
 
 # Advanced XSS
