@@ -326,18 +326,23 @@ String.raw`<script>alert(1)</script>`;
 `${constructor.constructor('alert(1)')()}`;
 ```
 
-### WAF Bypass Techniques
+### WAF Bypass Techniques (2025–2026 Updates)
 
-Bug bounty hunters often encounter Web Application Firewalls (WAFs) that block obvious payloads. Bypassing these requires exploiting how WAFs parse, decode, or interpret traffic differently from the backend server.
+Bug bounty hunters frequently encounter Web Application Firewalls (WAFs) that block obvious payloads. Evasion in 2025 and 2026 heavily relies on abusing parser logic discrepancies, payload fragmentation, emerging HTML attributes, and exploiting architectural inspection limits. 
 
-- **Cloudflare Bypass**: Cloudflare has robust XSS protections but can sometimes be bypassed using obfuscation and anomalies in HTML parsing.
-  - *Examples*: `<Img/Src/OnError=(alert)(1)>` (mixed casing and duplicated attributes) or using encoded characters with leading zeros.
-- **Akamai Bypass**: Akamai blocks common JavaScript functions and keywords. Attackers often bypass this via obfuscation, keyword splitting, or top-level context execution.
-  - *Examples*: `top["al"+"ert"](1)` or placing payloads in less common HTML tags like `<details ontoggle=print() open>`.
-- **Imperva Bypass**: Imperva often blocks `alert` and `prompt`.
-  - *Examples*: Contextual execution with `print` or using Base64 encoding combined with `atob()` dynamically.
-- **ModSecurity Rules Bypass**: ModSecurity (e.g., OWASP Core Rule Set) relies on regular expressions. Case manipulation and encoding strategies are frequently used to evade these checks.
-  - *Strategy*: Using alternative encodings or JavaScript obfuscators like JJEncode/JSFuck, and splitting payloads across inputs.
+- **Cloudflare Bypass**: While Cloudflare maintains robust protections, recent bypasses exploit HTML parser anomalies and event handler abuse.
+  - *Techniques*: "Attribute Overloading" via non-standard attributes or using payloads like `<Img/Src/OnError=(alert)(1)>` (mixed casing and null-byte injection) remain effective. Other vectors include `onToggle` event abuse using the `<details>` element (e.g., `<details/open/ontoggle=confirm(1)>`), and evading regex via alternate space characters (e.g., `/` instead of `%20`).
+  - *Sources*: [Cloudflare Security Research](https://blog.cloudflare.com/), [WAF-Bypass 2025 Payloads](https://waf-bypass.com/).
+- **AWS WAF Bypass**: Recent 2025/2026 research highlights severe bypasses targeting AWS Managed Rules by exploiting inspection constraints and parsing logic.
+  - *Techniques*: The `CrossSiteScripting_BODY` rule historically inspects only the first 8KB of the request body. Attackers pad requests with junk data to push the XSS payload outside this inspection window. Furthermore, HTTP Parameter Pollution (HPP) combined with JavaScript injection has achieved over 70% bypass rates against AWS WAFs by exploiting differences in how the WAF and backend (e.g., ASP.NET) concatenate parameters.
+  - *Sources*: [CyberSecurityNews: HTTP Parameter Pollution WAF Bypass](https://cybersecuritynews.com/), [AWS WAF Inspection Thresholds](https://docs.aws.amazon.com/).
+- **Akamai & Imperva Bypass**: These firewalls detect common JS functions natively (`alert`, `prompt`) and static malware signatures.
+  - *Techniques*: Attackers bypass them using dynamic polymorphic payloads, keyword splitting via array access (`top["al"+"ert"](1)`), and nesting payloads within deeply structured JSON or XML where WAF regex engines frequently time out or fail to inspect thoroughly.
+- **ModSecurity (OWASP CRS) Bypass**: Relies heavily on regular expression matching which can be overwhelmed or bypassed via syntax manipulation.
+  - *Techniques*: Advanced character splicing (`<scr\ipt>`), Unicode normalization attacks (`\u0061\u006c\u0065\u0072\u0074(1)`), and injecting payloads into overlooked HTTP methods (`PUT`, `OPTIONS`) or headers (`User-Agent`, `Referer`).
+- **Protocol-Level & Advanced Evasion**: Moving beyond standard HTTP requests to evade WAFs entirely.
+  - *Techniques*: Exploiting HTTP/2 specific frames, gRPC anomalies, and inserting payloads during WebSocket handshakes (CSWSH), exploiting the fact that many modern WAFs struggle to parse non-classic, multiplexed traffic at scale.
+  - *Sources*: [PortSwigger Web Security Research](https://portswigger.net/research/).
 
 ---
 
