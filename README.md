@@ -180,18 +180,23 @@ Reflect.construct(Function, ['alert(1)'])();
 
 ### Context-Based XSS
 
-Advanced XSS heavily depends on the execution context. The same payload will not work everywhere; attackers must adapt their injection depending on where the user input is reflected.
+Advanced XSS heavily depends on the execution context. The same payload will not work everywhere; attackers must adapt their injection depending on where the user input is reflected. In 2025 and 2026, context-aware encoding and mismatched contexts have become critical components of advanced evasion strategies.
 
 - **HTML Context**: Input is reflected between standard HTML tags (e.g., `<div>INPUT</div>`). 
-  - *Payload*: `<script>alert(1)</script>` or `<img src=x onerror=alert(1)>`
+  - *Classic Payload*: `<script>alert(1)</script>` or `<img src=x onerror=alert(1)>`
+  - *2025/2026 Evasion*: Utilizing mutation XSS (mXSS) where browsers re-interpret seemingly harmless input natively, such as `<svg><script>alert(1)</script></svg>`.
 - **Attribute Context**: Input is reflected inside an HTML attribute (e.g., `<input value="INPUT">`). 
-  - *Payload*: `"><script>alert(1)</script>` or `" autofocus onfocus="alert(1)`
+  - *Classic Payload*: `"><script>alert(1)</script>` or `" autofocus onfocus="alert(1)`
+  - *2025/2026 Evasion*: Injecting into newer HTML5 attributes or exploiting framework contexts where attribute values are dynamically evaluated as code (e.g., Vue or Angular directives).
 - **JavaScript Context**: Input is reflected inside an existing `<script>` block (e.g., `var user = 'INPUT';`).
-  - *Payload*: `'; alert(1); //` or `'-alert(1)-'`
+  - *Classic Payload*: `'; alert(1); //` or `'-alert(1)-'`
+  - *2025/2026 Evasion*: Using template literal injection (`` `${alert(1)}` ``) or exploiting JSON stringification parsing bugs where payloads are sanitized for JSON but later rendered unsafely in HTML views.
 - **URL Context**: Input is reflected inside an `href` or `src` attribute (e.g., `<a href="INPUT">`).
-  - *Payload*: `javascript:alert(1)` or `data:text/html,<script>alert(1)</script>`
+  - *Classic Payload*: `javascript:alert(1)` or `data:text/html,<script>alert(1)</script>`
+  - *2025/2026 Evasion*: Cloaking payloads in deep URL encoding or leveraging `blob:` and `data:` URIs combined with dynamic `import()` calls to bypass static WAF constraints.
+- **Mismatched Contexts (2025/2026 Trend)**: Data is sanitized correctly for one context (e.g., a database) but retrieved and rendered in another (e.g., a log dashboard) without re-encoding. An XSS payload in JSON might be safely escaped with Unicode (`\u003c`), but executed when a separate microservice decodes and logs it into an HTML viewer.
 - **DOM Context**: Input is processed by client-side JavaScript and passed to a dangerous sink (e.g., `innerHTML`, `eval`, or `setTimeout`).
-  - *Payload*: Depends on the sink, but often requires breaking out of strings and objects.
+  - *Payload*: Depends on the sink, but often requires breaking out of strings and objects. In recent AI-integrated apps (e.g., CVE-2025-0142), DOM contexts are often poisoned by manipulating prompts fed into client-side LLMs.
 
 ---
 
