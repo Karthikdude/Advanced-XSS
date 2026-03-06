@@ -4,7 +4,6 @@
 # Advanced XSS
 
 **Author:** Karthik S Sathyan  
-**Based on:** Nicolas Golubovic's *Advanced XSS*  
 **Date:** Updated February 2026 (Previously: July 2025, Originally: 20 October 2024)  
 **Description:** This project provides an in-depth explanation of advanced Cross-Site Scripting (XSS) techniques, including bypassing modern web security mechanisms like blacklists, filters, and Content Security Policy (CSP). It covers strategies for evading XSS defenses and executing scripts through various vectors, including DOM-based XSS, charset sniffing, cutting-edge 2025 attack vectors, and the latest Feb 2026 techniques targeting AI agents, real-time APIs, sanitizer bypasses, and advanced CSP evasion.
 
@@ -965,93 +964,76 @@ GIF89a<script>alert(1)</script>
 
 ---
 
-## Defensive Mechanisms
+## Defensive Mechanisms (2025–2026 Updates)
 
-While XSS is a prevalent threat, modern defenses are in place to mitigate attacks. However, these defenses are not foolproof.
+While XSS remains a persistent threat, defensive mechanisms have evolved drastically in 2025 and 2026. The security community has shifted from reliance on static sanitization libraries towards browser-native APIs, adaptive AI security, and inherently secure framework architectures.
 
-### How Developers Prevent XSS
+### Modern Prevention Architecture
 
-Properly securing an application against XSS requires a defense-in-depth approach, combining robust coding practices with browser-level security controls. Even though XSS execution is offensive, understanding the defense improves overall security posture.
+Properly securing an application against XSS requires a defense-in-depth approach, combining robust coding practices with browser-level security controls:
 
-- **Output Encoding**: The primary defense against XSS. Developers must encode data before inserting it into an HTML document, converting special characters into their corresponding HTML entities (e.g., `<` becomes `&lt;`). This prevents the browser from interpreting user input as executable code.
-- **Input Sanitization**: For applications that require accepting rich text, user input must be sanitized to remove dangerous elements and attributes. Robust libraries like **DOMPurify** should be used instead of custom regular expressions.
-- **Content Security Policy (CSP)**: A strong CSP mitigates the impact of XSS vulnerabilities by restricting the sources from which scripts can be loaded and disabling inline script execution using nonces or hashes.
-- **Context-Aware Escaping**: Understanding the execution context (HTML, Attribute, JavaScript) is crucial. Developers must apply the appropriate escaping mechanism specific to the context where the data will be rendered.
+- **Context-Aware Output Encoding**: The foundational defense. Developers must encode data based on where it is inserted (HTML, Attribute, JavaScript, CSS) to prevent the browser from interpreting user input as executable code.
+- **Secure Frameworks by Default**: Modern web frameworks (React, Angular, Vue, Next.js) offer auto-escaping features. Relying on these and avoiding dangerous APIs like `innerHTML` or `v-html` reduces the attack surface significantly.
+- **AI-Powered Code Analysis & RASP**: In 2025/2026, Static Application Security Testing (SAST) and Runtime Application Self-Protection (RASP) have integrated machine learning to adaptively detect and block complex, polymorphic XSS payloads before they execute.
 
-### httpOnly Cookies
+### Native Browser Security APIs (2026)
 
-Cookies marked as `httpOnly` cannot be accessed via JavaScript. This prevents XSS from stealing session cookies. However, they are not invulnerable.
+The biggest shift in frontend security is the standardization and adoption of browser-native sanitization APIs, officially championed by major browsers like Firefox (v148+) and Chrome.
 
-### Content Security Policy (CSP)
-
-CSP is a modern approach to prevent XSS by specifying allowed sources for scripts, styles, and other content. While effective, CSPs can be bypassed with **JSONP** or creative use of legitimate script inclusions.
-
-### XSS Auditors
-
-Browsers like **Chrome** feature XSS filters, which block reflected XSS by comparing input with the URL and sanitizing the response. These filters, however, can be bypassed with slight variations in the payload.
-
-**Note:** XSS Auditor has been deprecated in modern browsers and replaced with more robust mechanisms.
-
-### Trusted Types API - 2025
-
-**New browser security mechanism:**
+#### The Sanitizer API
+The Sanitizer API replaces the need for third-party libraries like DOMPurify by providing a built-in, standardized browser capability to safely sanitize HTML. It introduces the `setHTML()` method, which automatically strips dangerous elements (`<script>`, `<iframe>`) and attributes (`onclick`, `onerror`) before they reach the DOM.
 
 ```javascript
-// Trusted Types policy
-trustedTypes.createPolicy('myPolicy', {
-  createHTML: (string) => {
-    // Sanitize string
-    return DOMPurify.sanitize(string);
-  },
-  createScript: (string) => {
-    // Only allow specific scripts
-    if (allowedScripts.includes(string)) {
-      return string;
-    }
-    throw new Error('Untrusted script');
-  }
-});
-
-// Usage
-element.innerHTML = trustedTypes.getPropertyType('Element', 'innerHTML');
-```
-
-**2025 CSP Bypass Techniques:**
-
-```javascript
-// CSP bypass via JSONP
-<script src="https://trusted-site.com/api?callback=alert"></script>
-
-// CSP bypass via Angular template injection
-<div ng-app ng-csp>{{$eval.constructor('alert(1)')()}}</div>
-
-// CSP bypass via import maps
-<script type="importmap">{"imports":{"x":"data:text/javascript,alert(1)"}}</script>
-<script type="module">import 'x'</script>
-```
-
-### Sanitizer API - 2025
-
-**Native browser sanitization:**
-
-```javascript
-// Using the new Sanitizer API
+// Native Sanitizer API (2025/2026)
 const sanitizer = new Sanitizer({
-  allowElements: ['b', 'i', 'em', 'strong'],
+  allowElements: ['b', 'i', 'em', 'strong', 'p'],
   allowAttributes: {'class': ['highlight']},
   blockElements: ['script', 'object', 'embed']
 });
 
-element.setHTML(userInput, {sanitizer});
-
-// Custom sanitizer configuration
-const customSanitizer = new Sanitizer({
-  allowElements: ['p', 'br'],
-  dropElements: ['script', 'style'],
-  allowAttributes: {},
-  dropAttributes: ['onclick', 'onload']
-});
+// Safely inserts sanitized HTML into the DOM natively
+element.setHTML(untrustedUserInput, { sanitizer });
 ```
+
+#### Trusted Types
+Trusted Types fundamentally alter how the browser handles DOM sinks. When enabled via CSP (`Require-Trusted-Types-For: 'script'`), all dangerous DOM sinks (like `innerHTML` or `document.write`) are disabled for raw strings. Developers must explicitly pass data through a "Trusted Type" policy, forcing a centralized sanitization workflow.
+
+```javascript
+// Defining a Trusted Types Policy
+trustedTypes.createPolicy('default', {
+  createHTML: (string) => {
+    // Use the native Sanitizer API to create a TrustedHTML object
+    const sanitizer = new Sanitizer();
+    const template = document.createElement('template');
+    template.setHTML(string, { sanitizer });
+    return template.innerHTML; // Wrapped by the policy
+  }
+});
+
+// The browser now accepts this safely
+element.innerHTML = trustedTypes.getPropertyType('Element', 'innerHTML');
+```
+
+**Note:** In 2026, combining the **Sanitizer API** with **Trusted Types** is the industry-standard recommendation for eliminating DOM-based XSS entirely.
+
+### Advanced Content Security Policy (CSP)
+
+CSP has evolved into a "living control plane" for web security. Modern CSP designs in 2025/2026 heavily de-emphasize domain whitelisting (which is frequently bypassed) in favor of **strict, nonce-based** or **hash-based** policies combined with `strict-dynamic`.
+
+```http
+Content-Security-Policy: default-src 'none'; script-src 'nonce-{random}' 'strict-dynamic'; object-src 'none'; base-uri 'none'; require-trusted-types-for 'script';
+```
+
+- **`strict-dynamic`**: Allows scripts explicitly trusted via a nonce to load their own dependencies, making deployment easier without sacrificing security.
+- **CSP Reporting API**: Allows security teams to continuously monitor and adapt policies based on violation reports sent directly to a SIEM.
+
+### Semantic Web Application Firewalls (WAFs)
+
+Traditional regex-based WAFs are easily bypassed via fragmentation and obfuscation (as seen in the earlier WAF Bypass section). Modern WAFs in 2026 utilize **semantic analysis and machine learning**. Instead of matching static signatures, they analyze the behavioral intent of the payload, understanding context and decoding nested obfuscation layers (JSON, Base64, Hex) in real-time to block zero-day mutations.
+
+### httpOnly and Secure Cookies
+
+Cookies containing sensitive session tokens must be marked with both the `HttpOnly` flag (preventing access via `document.cookie` in JavaScript) and the `Secure` flag (ensuring transmission only over HTTPS). While this doesn't prevent XSS, it mitigates one of the most common impacts: session hijacking.
 
 ---
 
